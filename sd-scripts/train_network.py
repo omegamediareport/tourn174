@@ -475,6 +475,8 @@ class NetworkTrainer:
 
         current_loss = 1.0
         ckpt_loss = 1.0
+        ckpt_unet_lr = 1.0
+        ckpt_learning_rate = 1.0
 
         tokenize_strategy = self.get_tokenize_strategy(args)
         strategy_base.TokenizeStrategy.set_strategy(tokenize_strategy)
@@ -1461,38 +1463,62 @@ class NetworkTrainer:
                             logger.info(f"\ncurrent_loss: {current_loss}")
                             logger.info(f"ckpt_loss: {ckpt_loss}")
                             logger.info(f"len_loss: {len(loss_recorder.loss_list)}")
+                            logger.info(f"add lr")
                             ckpt_loss = current_loss
+                            ckpt_unet_lr = args.unet_lr
+                            ckpt_learning_rate = args.learning_rate
 
-                            if args.learning_rate < 0.0001:
-                                args.unet_lr = args.unet_lr*1.03
-                                args.learning_rate = args.learning_rate*1.03
-                                # args.unet_lr = args.unet_lr + 3*0.000001
-                                # args.learning_rate = args.learning_rate + 3*0.000001
-                            else:
-                                args.unet_lr = args.unet_lr*0.5
-                                args.learning_rate = args.learning_rate*0.5
+                            args.unet_lr = args.unet_lr*1.03
+                            args.learning_rate = args.learning_rate*1.03
+
+                            # if args.learning_rate < 0.0001:
+                            #     args.unet_lr = args.unet_lr*1.03
+                            #     args.learning_rate = args.learning_rate*1.03
+                            #     # args.unet_lr = args.unet_lr + 3*0.000001
+                            #     # args.learning_rate = args.learning_rate + 3*0.000001
                             # else:
-                            #     args.unet_lr = 0.00001
-                            #     args.learning_rate = 0.00001
+                            #     args.unet_lr = args.unet_lr*0.5
+                            #     args.learning_rate = args.learning_rate*0.5
+                            # # else:
+                            # #     args.unet_lr = 0.00001
+                            # #     args.learning_rate = 0.00001
                             logger.info(f"unet_lr: {args.unet_lr}")
                             logger.info(f"learning_rate: {args.learning_rate}")
+
+
+                        elif ckpt_loss*1.2 < current_loss:
+                            logger.info(f"\ncurrent_loss: {current_loss}")
+                            logger.info(f"ckpt_loss: {ckpt_loss}")
+                            logger.info(f"len_loss: {len(loss_recorder.loss_list)}")
+                            logger.info(f"back to best lr")
+
+                            args.unet_lr = ckpt_unet_lr
+                            args.learning_rate = ckpt_learning_rate
+
+                            logger.info(f"unet_lr: {args.unet_lr}")
+                            logger.info(f"learning_rate: {args.learning_rate}")
+
 
                         elif ckpt_loss < current_loss:
                             logger.info(f"\ncurrent_loss: {current_loss}")
                             logger.info(f"ckpt_loss: {ckpt_loss}")
                             logger.info(f"len_loss: {len(loss_recorder.loss_list)}")
+                            logger.info(f"reduce lr")
 
-                            if args.learning_rate > 0.000001:
-                                args.unet_lr = args.unet_lr*0.99
-                                args.learning_rate = args.learning_rate*0.99
-                                # args.unet_lr = args.unet_lr - 2*0.000001
-                                # args.learning_rate = args.learning_rate - 2*0.000001
-                            else:
-                                args.unet_lr = args.unet_lr*1.5
-                                args.learning_rate = args.learning_rate*1.5
+                            args.unet_lr = args.unet_lr*0.99
+                            args.learning_rate = args.learning_rate*0.99
+
+                            # if args.learning_rate > 0.000001:
+                            #     args.unet_lr = args.unet_lr*0.99
+                            #     args.learning_rate = args.learning_rate*0.99
+                            #     # args.unet_lr = args.unet_lr - 2*0.000001
+                            #     # args.learning_rate = args.learning_rate - 2*0.000001
                             # else:
-                            #     args.unet_lr = 0.00001
-                            #     args.learning_rate = 0.00001
+                            #     args.unet_lr = args.unet_lr*1.5
+                            #     args.learning_rate = args.learning_rate*1.5
+                            # # else:
+                            # #     args.unet_lr = 0.00001
+                            # #     args.learning_rate = 0.00001
                             logger.info(f"unet_lr: {args.unet_lr}")
                             logger.info(f"learning_rate: {args.learning_rate}")
 
@@ -1667,7 +1693,14 @@ class NetworkTrainer:
             # 指定エポックごとにモデルを保存
             optimizer_eval_fn()
             if args.save_every_n_epochs is not None:
-                saving = (epoch + 1) % args.save_every_n_epochs == 0 and (epoch + 1) < num_train_epochs
+                save_epoch = 1
+                len_loss = len(loss_recorder.loss_list)
+                if len_loss < 30:
+                    save_epoch = 30
+                else:
+                    save_epoch = args.save_every_n_epochs
+                    
+                saving = (epoch + 1) % save_epoch == 0 and (epoch + 1) < num_train_epochs
                 if is_main_process and saving:
                     # ckpt_name = train_util.get_epoch_ckpt_name(args, "." + args.save_model_as, epoch + 1)
                     # save_model(ckpt_name, accelerator.unwrap_model(network), global_step, epoch + 1)
@@ -1702,8 +1735,8 @@ class NetworkTrainer:
             train_util.save_state_on_train_end(args, accelerator)
 
         # if is_main_process and args.last_loss*1.1 >= current_loss:
-        if is_main_process and ckpt_loss >= current_loss:
-        # if is_main_process:
+        # if is_main_process and ckpt_loss >= current_loss:
+        if is_main_process:
             logger.info("\n")
             logger.info(f"current_loss: {current_loss}")
             logger.info(f"last_loss: {ckpt_loss}")
