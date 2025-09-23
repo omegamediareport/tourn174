@@ -477,6 +477,7 @@ class NetworkTrainer:
         ckpt_loss = 1.0
         ckpt_unet_lr = 1.0
         ckpt_learning_rate = 1.0
+        len_loss = 30
 
         tokenize_strategy = self.get_tokenize_strategy(args)
         strategy_base.TokenizeStrategy.set_strategy(tokenize_strategy)
@@ -1458,11 +1459,12 @@ class NetworkTrainer:
                                 remove_ckpt_name = train_util.get_step_ckpt_name(args, "." + args.save_model_as, remove_step_no)
                                 remove_model(remove_ckpt_name)
 
-                    if global_step % 20 == 0:
+                    if global_step % 20 == 0: 
+                        len_loss = len(loss_recorder.loss_list)
                         if ckpt_loss*1.0 >= current_loss:
                             logger.info(f"\ncurrent_loss: {current_loss}")
                             logger.info(f"ckpt_loss: {ckpt_loss}")
-                            logger.info(f"len_loss: {len(loss_recorder.loss_list)}")
+                            logger.info(f"len_loss: {len_loss}")
                             logger.info(f"add lr")
                             ckpt_loss = current_loss
                             ckpt_unet_lr = args.unet_lr
@@ -1489,20 +1491,17 @@ class NetworkTrainer:
                         elif ckpt_loss*1.2 < current_loss:
                             logger.info(f"\ncurrent_loss: {current_loss}")
                             logger.info(f"ckpt_loss: {ckpt_loss}")
-                            logger.info(f"len_loss: {len(loss_recorder.loss_list)}")
+                            logger.info(f"len_loss: {len_loss}")
                             logger.info(f"back to best lr")
 
                             args.unet_lr = ckpt_unet_lr
                             args.learning_rate = ckpt_learning_rate
 
-                            logger.info(f"unet_lr: {args.unet_lr}")
-                            logger.info(f"learning_rate: {args.learning_rate}")
-
 
                         elif ckpt_loss < current_loss:
                             logger.info(f"\ncurrent_loss: {current_loss}")
                             logger.info(f"ckpt_loss: {ckpt_loss}")
-                            logger.info(f"len_loss: {len(loss_recorder.loss_list)}")
+                            logger.info(f"len_loss: {len_loss}")
                             logger.info(f"reduce lr")
 
                             args.unet_lr = args.unet_lr*0.99
@@ -1695,8 +1694,10 @@ class NetworkTrainer:
             if args.save_every_n_epochs is not None:
                 save_epoch = 1
                 len_loss = len(loss_recorder.loss_list)
-                if len_loss < 30:
-                    save_epoch = 30
+                if len_loss < 10:
+                    save_epoch = 10
+                elif len_loss < 20:
+                    save_epoch = 5
                 else:
                     save_epoch = args.save_every_n_epochs
                     
